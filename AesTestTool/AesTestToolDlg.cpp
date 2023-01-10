@@ -237,9 +237,38 @@ int CAesTestToolDlg::hexstr2bytes(CString str, uint8_t* ouput)
 
 void CAesTestToolDlg::LoadInputData()
 {
+	CString aes;
+	::GetPrivateProfileString("input", "AES", "", aes.GetBuffer(33), 33, ".//setting.ini");
+	int cnt = mCboxAes.GetCount();
+	CString aesName;
+	for (int i = 0; i < cnt; i++)
+	{
+		mCboxAes.GetLBText(i, aesName);
+		if (aes == aesName)
+		{
+			mCboxAes.SetCurSel(i);
+			break;
+		}
+	}
+
 	CString key;
 	::GetPrivateProfileString("input", "KEY", "", key.GetBuffer(33), 33, ".//setting.ini");
 	mEditKey.SetWindowTextA(key);
+
+	CString keySize;
+	::GetPrivateProfileString("input", "KeySize", "", keySize.GetBuffer(16), 16, ".//setting.ini");
+	if (-1 != keySize.Find("128"))
+	{
+		mCboxKey.SetCurSel(0);
+	}
+	else if (-1 != keySize.Find("192"))
+	{
+		mCboxKey.SetCurSel(1);
+	}
+	else if (-1 != keySize.Find("256"))
+	{
+		mCboxKey.SetCurSel(2);
+	}
 
 	CString nonceCount;
 	::GetPrivateProfileString("input", "IV", "", nonceCount.GetBuffer(33), 33, ".//setting.ini");
@@ -264,6 +293,12 @@ void CAesTestToolDlg::LoadInputData()
 void CAesTestToolDlg::OnBnClickedButtonEncrypt()
 {
 	size_t len;
+	int key_size = 128;
+
+	CString aesStr;
+	mCboxAes.GetWindowTextA(aesStr);
+	::WritePrivateProfileString("input", "AES", aesStr, ".//setting.ini");
+
 	CString keyStr;
 	mEditKey.GetWindowTextA(keyStr);
 	keyStr.Trim();
@@ -279,6 +314,23 @@ void CAesTestToolDlg::OnBnClickedButtonEncrypt()
 		return;
 	}
 	::WritePrivateProfileString("input", "KEY", keyStr, ".//setting.ini");
+
+	int cur_sel = mCboxKey.GetCurSel();
+	if (0 == cur_sel)
+	{
+		key_size = 128;
+	}
+	else if (1 == cur_sel)
+	{
+		key_size = 192;
+	}
+	else if (2 == cur_sel)
+	{
+		key_size = 256;
+	}
+	CString keySizeStr;
+	keySizeStr.Format("%dbits", key_size);
+	::WritePrivateProfileString("input", "KeySize", keySizeStr, ".//setting.ini");
 
 	CString ivStr;
 	mEditIv.GetWindowTextA(ivStr);
@@ -346,7 +398,7 @@ void CAesTestToolDlg::OnBnClickedButtonEncrypt()
 	hexstr2bytes(dataStr, data);
 
 	memset(output, 0, len + 16);
-	aes_ctr_encrypt(key_bytes, 16, iv_bytes, data, len, output);
+	aes_ctr_encrypt(key_bytes, key_size/8, iv_bytes, data, len, output);
 	CString plaintext = "";
 	CString strTmp;
 	for (int i = 0; i < len; i++)

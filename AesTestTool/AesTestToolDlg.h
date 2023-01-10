@@ -45,4 +45,5 @@ public:
 	CEdit mEditMac;
 	CButton mCheckMac;
 	CEdit mMacStatus;
+	afx_msg void OnBnClickedButtonDecrypt();
 };
