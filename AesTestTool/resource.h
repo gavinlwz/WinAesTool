@@ -16,6 +16,7 @@
 #define IDC_EDIT2                       1006
 #define IDC_EDIT3                       1007
 #define IDC_BUTTON1                     1008
+#define IDC_BUTTON_DECRYPT              1008
 #define IDC_EDIT4                       1009
 #define IDC_CHECK_MAC                   1010
 #define IDC_EDIT5                       1011

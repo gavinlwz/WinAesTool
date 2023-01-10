@@ -77,6 +77,7 @@ BEGIN_MESSAGE_MAP(CAesTestToolDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BUTTON_ENCRYPT, &CAesTestToolDlg::OnBnClickedButtonEncrypt)
+	ON_BN_CLICKED(IDC_BUTTON_DECRYPT, &CAesTestToolDlg::OnBnClickedButtonDecrypt)
 END_MESSAGE_MAP()
 
 
@@ -128,6 +129,8 @@ BOOL CAesTestToolDlg::OnInitDialog()
 	mCboxPadd.AddString("Zero");
 	mCboxPadd.AddString("PKCS7");
 	mCboxPadd.SetCurSel(0);
+
+	LoadInputData();
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -180,22 +183,170 @@ HCURSOR CAesTestToolDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+int CAesTestToolDlg::hexstr2bytes(CString str, uint8_t* ouput)
+{
+	char* p = str.GetBuffer();
+	int len = str.GetLength();
+	uint8_t val_h;
+	uint8_t val_l;
+	char c;
+	int j = 0;
+	int ret = 0;
+	for (int i = 0; i < len; )
+	{
+		c = p[i];
+		if (c >= '0' && c <= '9')
+		{
+			val_h = c - '0';
+		}
+		else  if (c >= 'A' && c <= 'F')
+		{
+			val_h = 10 + c - 'A';
+		}
+		else  if (c >= 'a' && c <= 'f')
+		{
+			val_h = 10 + c - 'a';
+		}
+		else {
+			val_h = 0;
+		}
+
+		c = p[i + 1];
+		if (c >= '0' && c <= '9')
+		{
+			val_l = c - '0';
+		}
+		else  if (c >= 'A' && c <= 'F')
+		{
+			val_l = 10 + c - 'A';
+		}
+		else  if (c >= 'a' && c <= 'f')
+		{
+			val_l = 10 + c - 'a';
+		}
+		else {
+			val_l = 0;
+		}
+		j = i / 2;
+		ouput[j] = (val_h << 4) + val_l;
+		i += 2;
+		ret++;
+	}
+	return ret;
+}
+
+void CAesTestToolDlg::LoadInputData()
+{
+	CString key;
+	::GetPrivateProfileString("input", "KEY", "", key.GetBuffer(33), 33, ".//setting.ini");
+	mEditKey.SetWindowTextA(key);
+
+	CString nonceCount;
+	::GetPrivateProfileString("input", "IV", "", nonceCount.GetBuffer(33), 33, ".//setting.ini");
+	mEditIv.SetWindowTextA(nonceCount);
+
+	int isCheckTag = ::GetPrivateProfileInt("input", "CheckMac", 0, ".//setting.ini");
+	mCheckMac.SetCheck(isCheckTag);
+	if (isCheckTag)
+	{
+		CString tag;
+		::GetPrivateProfileString("input", "MAC", "", tag.GetBuffer(17), 17, ".//setting.ini");
+		mEditMac.SetWindowTextA(tag);
+	}
+
+	CString ciphertext;
+	::GetPrivateProfileString("input", "DATA", "", ciphertext.GetBuffer(63), 63, ".//setting.ini");
+	mEditInputData.SetWindowTextA(ciphertext);
+}
+
 
 
 void CAesTestToolDlg::OnBnClickedButtonEncrypt()
 {
-	uint8_t msg[16] = { 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 };
-	uint8_t mac[16] = { 0 };
-	uint8_t key[32];
-	uint8_t output[32];
-	uint32_t len = sizeof(msg);
-	uint8_t iv[16] = { 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-	for (int i = 0; i < 32; i++)
+	size_t len;
+	CString keyStr;
+	mEditKey.GetWindowTextA(keyStr);
+	keyStr.Trim();
+	len = keyStr.GetLength();
+	if ((len != 32) && (len != 64) && (len != 48))
 	{
-		key[i] = i;
+		AfxMessageBox("Key is illegal");
+		return;
 	}
-	memset(output, 0, sizeof(output));
-	aes_ctr_encrypt(key, 16, iv, msg, sizeof(msg), output);
+	if (keyStr.SpanIncluding(_T("0123456789abcdefABCDEF")) != keyStr)
+	{
+		AfxMessageBox("Key is illegal hex string");
+		return;
+	}
+	::WritePrivateProfileString("input", "KEY", keyStr, ".//setting.ini");
+
+	CString ivStr;
+	mEditIv.GetWindowTextA(ivStr);
+	ivStr.Trim();
+	len = ivStr.GetLength();
+	if ((len & 1) || (0 == len))
+	{
+		AfxMessageBox("IV is illegal");
+		return;
+	}
+	if (ivStr.SpanIncluding(_T("0123456789abcdefABCDEF")) != ivStr)
+	{
+		AfxMessageBox("IV is illegal hex string");
+		return;
+	}
+	::WritePrivateProfileString("input", "IV", ivStr, ".//setting.ini");
+
+	int isCheckMac = mCheckMac.GetCheck();
+	CString isCheckMacStr;
+	isCheckMacStr.Format("%d", isCheckMac);
+	::WritePrivateProfileString("input", "CheckMac", isCheckMacStr, ".//setting.ini");
+	CString macStr;
+	if (isCheckMac)
+	{
+		mEditMac.GetWindowTextA(macStr);
+		macStr.Trim();
+		len = macStr.GetLength();
+		if ( 0 == len || (1 == (len & 1)) || len > 32)
+		{
+			AfxMessageBox("MAC is illegal");
+			return;
+		}
+		if (macStr.SpanIncluding(_T("0123456789abcdefABCDEF")) != macStr)
+		{
+			AfxMessageBox("MAC is illegal hex string");
+			return;
+		}
+		::WritePrivateProfileString("input", "MAC", macStr, ".//setting.ini");
+	}
+
+	CString dataStr;
+	mEditInputData.GetWindowTextA(dataStr);
+	dataStr.Trim();
+	len = dataStr.GetLength();
+	if (0 == len || (1 == (len & 1)))
+	{
+		AfxMessageBox("Input Data is illegal");
+		return;
+	}
+	if (dataStr.SpanIncluding(_T("0123456789abcdefABCDEF")) != dataStr)
+	{
+		AfxMessageBox("Input Data is illegal hex string");
+		return;
+	}
+	::WritePrivateProfileString("input", "DATA", dataStr, ".//setting.ini");
+
+	uint8_t key_bytes[32] = { 0 };
+	uint8_t iv_bytes[16] =  { 0 };
+	uint8_t mac[16] = { 0 };
+	len = dataStr.GetLength() / 2;
+	uint8_t *data = (uint8_t*)malloc(len);
+	uint8_t *output = (uint8_t*)malloc(len + 16);
+	hexstr2bytes(keyStr, key_bytes);
+	hexstr2bytes(ivStr, iv_bytes);
+	hexstr2bytes(dataStr, data);
+
+	memset(output, 0, len + 16);
+	aes_ctr_encrypt(key_bytes, 16, iv_bytes, data, len, output);
 	CString plaintext = "";
 	CString strTmp;
 	for (int i = 0; i < len; i++)
@@ -205,4 +356,13 @@ void CAesTestToolDlg::OnBnClickedButtonEncrypt()
 	}
 	editPlaintext.SetWindowTextA(plaintext);
 	//editTagCheckStatus.SetWindowTextA(tagCheck);
+
+	free(data);
+	free(output);
+}
+
+
+void CAesTestToolDlg::OnBnClickedButtonDecrypt()
+{
+	// TODO: 在此添加控件通知处理程序代码
 }

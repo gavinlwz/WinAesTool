@@ -30,11 +30,12 @@ protected:
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
+	int hexstr2bytes(CString str, uint8_t* ouput);
+	void LoadInputData();
 	DECLARE_MESSAGE_MAP()
 public:
 	afx_msg void OnBnClickedButtonEncrypt();
 	CEdit editPlaintext;
-	afx_msg void OnBnClickedCheck1();
 	CComboBox mCboxAes;
 	CComboBox mCboxKey;
 	CComboBox mCboxPadd;
